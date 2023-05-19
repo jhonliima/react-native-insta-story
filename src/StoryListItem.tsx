@@ -32,19 +32,19 @@ type Props = {
   description?: string;
   customSwipeUpComponent?: any;
   customCloseComponent?: any;
-  images: IUserStoryItem[];
+  stories: IUserStoryItem[];
   currentPage: number;
 };
 
 export const StoryListItem = (props: Props) => {
   const videoPlayer = React.useRef();
-  const images = props.images;
+  const stories = props.stories;
   const navigation = useNavigation();
 
   const [load, setLoad] = useState(true);
   const [pressed, setPressed] = useState(false);
   const [content, setContent] = useState(
-    images.map((x) => {
+    stories.map((x) => {
       return {
         image: x.title,
         onPress: x.onPress,

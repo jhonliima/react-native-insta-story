@@ -12,58 +12,56 @@ import {
   Platform,
   SafeAreaView,
 } from 'react-native';
+import type { IUserStoryItem } from './interfaces/IUserStory';
+import { usePrevious } from './helpers/StateHelpers';
+import { isNullOrWhitespace } from './helpers/ValidationHelpers';
 import GestureRecognizer from 'react-native-swipe-gestures';
-
-import { usePrevious, isNullOrWhitespace } from './helpers';
-import {
-  IUserStoryItem,
-  NextOrPrevious,
-  StoryListItemProps,
-} from './interfaces';
+import { useNavigation } from '@react-navigation/native';
+import VideoPlayer from 'react-native-video-player';
 
 const { width, height } = Dimensions.get('window');
 
-export const StoryListItem = ({
-  index,
-  key,
-  userId,
-  profileImage,
-  profileName,
-  duration,
-  onFinish,
-  onClosePress,
-  stories,
-  currentPage,
-  onStorySeen,
-  renderCloseComponent,
-  renderSwipeUpComponent,
-  renderTextComponent,
-  loadedAnimationBarStyle,
-  unloadedAnimationBarStyle,
-  animationBarContainerStyle,
-  storyUserContainerStyle,
-  storyImageStyle,
-  storyAvatarImageStyle,
-  storyContainerStyle,
-  ...props
-}: StoryListItemProps) => {
-  const [load, setLoad] = useState<boolean>(true);
-  const [pressed, setPressed] = useState<boolean>(false);
-  const [content, setContent] = useState<IUserStoryItem[]>(
-    stories.map((x) => ({
-      ...x,
-      finish: 0,
-    })),
+type Props = {
+  profileId: String;
+  profileName: string;
+  profileImage: string;
+  duration?: number;
+  onFinish?: Function;
+  onClosePress: Function;
+  key: number;
+  description?: string;
+  customSwipeUpComponent?: any;
+  customCloseComponent?: any;
+  images: IUserStoryItem[];
+};
+
+export const StoryListItem = (props: Props) => {
+  const videoPlayer = React.useRef();
+  const images = props.images;
+  const navigation = useNavigation();
+
+  const [load, setLoad] = useState(true);
+  const [pressed, setPressed] = useState(false);
+  const [content, setContent] = useState(
+    images.map((x) => {
+      return {
+        image: x.title,
+        onPress: x.onPress,
+        type: x.type,
+        description: x.description,
+        finish: 0,
+      };
+    }),
   );
 
   const [current, setCurrent] = useState(0);
 
   const progress = useRef(new Animated.Value(0)).current;
 
-  const prevCurrentPage = usePrevious(currentPage);
+  const prevCurrentPage = usePrevious(props.currentPage);
 
   useEffect(() => {
-    let isPrevious = !!prevCurrentPage && prevCurrentPage > currentPage;
+    let isPrevious = prevCurrentPage > props.currentPage;
     if (isPrevious) {
       setCurrent(content.length - 1);
     } else {
@@ -83,28 +81,24 @@ export const StoryListItem = ({
     });
     setContent(data);
     start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage]);
+  }, [props.currentPage]);
 
   const prevCurrent = usePrevious(current);
 
   useEffect(() => {
     if (!isNullOrWhitespace(prevCurrent)) {
-      if (prevCurrent) {
-        if (
-          current > prevCurrent &&
-          content[current - 1].story_image == content[current].story_image
-        ) {
-          start();
-        } else if (
-          current < prevCurrent &&
-          content[current + 1].story_image == content[current].story_image
-        ) {
-          start();
-        }
+      if (
+        current > prevCurrent &&
+        content[current - 1].image == content[current].image
+      ) {
+        start();
+      } else if (
+        current < prevCurrent &&
+        content[current + 1].image == content[current].image
+      ) {
+        start();
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current]);
 
   function start() {
@@ -113,10 +107,12 @@ export const StoryListItem = ({
     startAnimation();
   }
 
-  function startAnimation() {
+  function startAnimation(duration) {
+    const time = content[current].type.startsWith('video') ? duration : 10000;
     Animated.timing(progress, {
       toValue: 1,
-      duration: duration,
+      duration: time,
+      // duration: props.duration,
       useNativeDriver: false,
     }).start(({ finished }) => {
       if (finished) {
@@ -125,17 +121,17 @@ export const StoryListItem = ({
     });
   }
 
-  function onSwipeUp(_props?: any) {
-    if (onClosePress) {
-      onClosePress();
+  function onSwipeUp() {
+    if (props.onClosePress) {
+      props.onClosePress();
     }
     if (content[current].onPress) {
-      content[current].onPress?.();
+      content[current].onPress();
     }
   }
 
-  function onSwipeDown(_props?: any) {
-    onClosePress();
+  function onSwipeDown() {
+    props?.onClosePress();
   }
 
   const config = {
@@ -173,47 +169,58 @@ export const StoryListItem = ({
     }
   }
 
-  function close(state: NextOrPrevious) {
+  function close(state: any) {
     let data = [...content];
     data.map((x) => (x.finish = 0));
     setContent(data);
     progress.setValue(0);
-    if (currentPage == index) {
-      if (onFinish) {
-        onFinish(state);
+    if (props.currentPage == props.index) {
+      if (props.onFinish) {
+        props.onFinish(state);
       }
     }
   }
 
-  const swipeText =
-    content?.[current]?.swipeText || props.swipeText || 'Swipe Up';
+  const onLoad = async (meta) => {
+    startAnimation(Math.ceil(meta.duration) * 1000);
+  };
 
-  React.useEffect(() => {
-    if (onStorySeen && currentPage === index) {
-      onStorySeen({
-        user_id: userId,
-        user_image: profileImage,
-        user_name: profileName,
-        story: content[current],
-      });
-    }
-  }, [currentPage, index, onStorySeen, current]);
+  const onEnd = () => {
+    start();
+  };
+
+  const description =
+    content?.[current]?.description || props.description || '';
 
   return (
     <GestureRecognizer
-      key={key}
-      onSwipeUp={onSwipeUp}
-      onSwipeDown={onSwipeDown}
+      onSwipeUp={(state) => onSwipeUp(state)}
+      onSwipeDown={(state) => onSwipeDown(state)}
       config={config}
-      style={[styles.container, storyContainerStyle]}
+      style={{
+        flex: 1,
+        backgroundColor: 'black',
+      }}
     >
       <SafeAreaView>
         <View style={styles.backgroundContainer}>
-          <Image
-            onLoadEnd={() => start()}
-            source={{ uri: content[current].story_image }}
-            style={[styles.image, storyImageStyle]}
-          />
+          {content[current].type.startsWith('video') ? (
+            <VideoPlayer
+              source={{ uri: content[current].image }}
+              ref={(ref) => (videoPlayer.current = ref)}
+              resizeMode={'contain'}
+              // onLoadStart={onLoad}
+              onLoad={onLoad}
+              onEnd={onEnd}
+              style={styles.video}
+            />
+          ) : (
+            <Image
+              onLoadEnd={() => start()}
+              source={{ uri: content[current].image }}
+              style={styles.image}
+            />
+          )}
           {load && (
             <View style={styles.spinnerContainer}>
               <ActivityIndicator size="large" color={'white'} />
@@ -221,63 +228,62 @@ export const StoryListItem = ({
           )}
         </View>
       </SafeAreaView>
-      <View style={styles.flexCol}>
-        <View
-          style={[styles.animationBarContainer, animationBarContainerStyle]}
-        >
+      <View style={{ flexDirection: 'column', flex: 1 }}>
+        <View style={styles.animationBarContainer}>
           {content.map((index, key) => {
             return (
-              <View
-                key={key}
-                style={[styles.animationBackground, unloadedAnimationBarStyle]}
-              >
+              <View key={key} style={styles.animationBackground}>
                 <Animated.View
-                  style={[
-                    {
-                      flex: current == key ? progress : content[key].finish,
-                      height: 2,
-                      backgroundColor: 'white',
-                    },
-                    loadedAnimationBarStyle,
-                  ]}
+                  style={{
+                    flex: current == key ? progress : content[key].finish,
+                    height: 2,
+                    backgroundColor: 'white',
+                  }}
                 />
               </View>
             );
           })}
         </View>
-        <View style={[styles.userContainer, storyUserContainerStyle]}>
-          <View style={styles.flexRowCenter}>
-            <Image
-              style={[styles.avatarImage, storyAvatarImageStyle]}
-              source={{ uri: profileImage }}
-            />
-            {typeof renderTextComponent === 'function' ? (
-              renderTextComponent({
-                item: content[current],
-                profileName,
-              })
-            ) : (
-              <Text style={styles.avatarText}>{profileName}</Text>
-            )}
-          </View>
-          <View style={styles.closeIconContainer}>
-            {typeof renderCloseComponent === 'function' ? (
-              renderCloseComponent({
-                onPress: onClosePress,
-                item: content[current],
-              })
-            ) : (
-              <TouchableOpacity
-                onPress={() => {
-                  if (onClosePress) {
-                    onClosePress();
-                  }
-                }}
-              >
-                <Text style={styles.whiteText}>X</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+        <View style={styles.userContainer}>
+          <TouchableOpacity
+            onPress={() => {
+              if (props.onClosePress) {
+                props.onClosePress();
+                navigation.navigate('ProfileWrapper', {
+                  data: props.profileId,
+                });
+              }
+            }}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingVertical: 15,
+              }}
+            >
+              <Image
+                style={styles.avatarImage}
+                source={{ uri: props.profileImage }}
+              />
+              <Text style={styles.avatarText}>{props.profileName}</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              if (props.onClosePress) {
+                props.onClosePress();
+              }
+            }}
+          >
+            <View style={styles.closeIconContainer}>
+              {props.customCloseComponent ? (
+                props.customCloseComponent
+              ) : (
+                <Text style={{ color: 'white' }}>X</Text>
+              )}
+            </View>
+          </TouchableOpacity>
         </View>
         <View style={styles.pressContainer}>
           <TouchableWithoutFeedback
@@ -293,7 +299,7 @@ export const StoryListItem = ({
               }
             }}
           >
-            <View style={styles.flex} />
+            <View style={{ flex: 1 }} />
           </TouchableWithoutFeedback>
           <TouchableWithoutFeedback
             onPressIn={() => progress.stopAnimation()}
@@ -308,23 +314,35 @@ export const StoryListItem = ({
               }
             }}
           >
-            <View style={styles.flex} />
+            <View style={{ flex: 1 }} />
           </TouchableWithoutFeedback>
         </View>
+        <Text
+          style={{
+            flex: 1,
+            color: 'white',
+            fontSize: 15,
+            textAlign: 'center',
+            textAlignVertical: 'center',
+            marginBottom: '-20%',
+            marginLeft: 15,
+            marginRight: 15,
+          }}
+        >
+          {description}
+        </Text>
       </View>
-      {typeof renderSwipeUpComponent === 'function' ? (
-        renderSwipeUpComponent({
-          onPress: onSwipeUp,
-          item: content[current],
-        })
-      ) : (
+      {content[current].onPress && (
         <TouchableOpacity
           activeOpacity={1}
           onPress={onSwipeUp}
           style={styles.swipeUpBtn}
         >
-          <Text style={styles.swipeText}></Text>
-          <Text style={styles.swipeText}>{swipeText}</Text>
+          <>
+            <Text style={{ color: 'white', fontSize: 50, marginBottom: 5 }}>
+              {props.profileName}
+            </Text>
+          </>
         </TouchableOpacity>
       )}
     </GestureRecognizer>
@@ -342,21 +360,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  flex: {
-    flex: 1,
-  },
-  flexCol: {
-    flex: 1,
-    flexDirection: 'column',
-  },
-  flexRowCenter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   image: {
     width: width,
     height: height,
-    resizeMode: 'cover',
+    resizeMode: 'contain',
   },
   backgroundContainer: {
     position: 'absolute',
@@ -387,14 +394,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   userContainer: {
-    height: 50,
+    height: 70,
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 15,
   },
   avatarImage: {
-    height: 30,
-    width: 30,
+    height: 40,
+    width: 40,
     borderRadius: 100,
   },
   avatarText: {
@@ -405,7 +412,7 @@ const styles = StyleSheet.create({
   closeIconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 50,
+    height: 70,
     paddingHorizontal: 15,
   },
   pressContainer: {
@@ -419,11 +426,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     bottom: Platform.OS == 'ios' ? 20 : 50,
   },
-  whiteText: {
-    color: 'white',
-  },
-  swipeText: {
-    color: 'white',
-    marginTop: 5,
+  video: {
+    width: width,
+    height: height - 50,
+    resizeMode: 'contain',
   },
 });

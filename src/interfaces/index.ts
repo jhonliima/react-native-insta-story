@@ -15,6 +15,7 @@ export interface IUserStory<T = Record<string, any>> {
   stories: IUserStoryItem<T>[];
   /** INTERNAL USE ONLY */
   seen?: boolean;
+  video: string;
 }
 
 export interface IUserStoryItem<T = Record<string, any>> {
@@ -23,10 +24,13 @@ export interface IUserStoryItem<T = Record<string, any>> {
   /** Function that gets called when the swipe up button is pressed */
   onPress?: (props?: any) => any;
   swipeText?: string;
+  type?: string;
   /** Add your own custom props to access in the custom render methods */
   customProps?: T;
   /** FOR INTERNAL USE ONLY */
   finish?: number;
+  title?: string;
+  description: string;
 }
 
 /** User with one story representing the current story on screen */

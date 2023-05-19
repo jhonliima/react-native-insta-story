@@ -12,7 +12,7 @@ import {
   Platform,
   SafeAreaView,
 } from 'react-native';
-import type { IUserStoryItem } from './interfaces/IUserStory';
+import type { IUserStoryItem } from './interfaces/';
 import { usePrevious } from './helpers/StateHelpers';
 import { isNullOrWhitespace } from './helpers/ValidationHelpers';
 import GestureRecognizer from 'react-native-swipe-gestures';
@@ -33,6 +33,7 @@ type Props = {
   customSwipeUpComponent?: any;
   customCloseComponent?: any;
   images: IUserStoryItem[];
+  currentPage: number;
 };
 
 export const StoryListItem = (props: Props) => {
@@ -107,8 +108,8 @@ export const StoryListItem = (props: Props) => {
     startAnimation();
   }
 
-  function startAnimation(duration) {
-    const time = content[current].type.startsWith('video') ? duration : 10000;
+  function startAnimation(duration: any) {
+    const time = content[current]?.type?.startsWith('video') ? duration : 10000;
     Animated.timing(progress, {
       toValue: 1,
       duration: time,
@@ -126,7 +127,7 @@ export const StoryListItem = (props: Props) => {
       props.onClosePress();
     }
     if (content[current].onPress) {
-      content[current].onPress();
+      content[current]?.onPress();
     }
   }
 
@@ -169,7 +170,7 @@ export const StoryListItem = (props: Props) => {
     }
   }
 
-  function close(state: any) {
+  function close(state) {
     let data = [...content];
     data.map((x) => (x.finish = 0));
     setContent(data);
@@ -204,10 +205,10 @@ export const StoryListItem = (props: Props) => {
     >
       <SafeAreaView>
         <View style={styles.backgroundContainer}>
-          {content[current].type.startsWith('video') ? (
+          {content[current]?.type?.startsWith('video') ? (
             <VideoPlayer
               source={{ uri: content[current].image }}
-              ref={(ref) => (videoPlayer.current = ref)}
+              ref={(ref: any) => (videoPlayer.current = ref)}
               resizeMode={'contain'}
               // onLoadStart={onLoad}
               onLoad={onLoad}
